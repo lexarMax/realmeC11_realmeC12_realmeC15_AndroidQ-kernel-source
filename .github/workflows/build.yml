@@ -3,13 +3,16 @@ name: Build Kernel NetHunter Realme C15 (Ultimate Multi-Driver)
 on:
   workflow_dispatch: # Memunculkan tombol "Run Workflow" manual di web GitHub
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # Memaksa semua aksi javascript berjalan di Node.js 24 modern
+
 jobs:
   build-kernel:
     runs-on: ubuntu-22.04 # Pangkalan server Ubuntu 22.04 stabil untuk penanganan Python 2 secara native
 
     steps:
     - name: Checkout Kernel Source
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Set Up Python 2.7 & Build Dependencies
       run: |
@@ -702,8 +705,8 @@ jobs:
               echo "$5" >> $1;
             else
               sed -i "${line}s;^;${5}\n;" $1;
-            fi;
           fi;
+        fi;
         }
 
         # replace_line <file> <line replace string> <replacement line>
@@ -948,6 +951,11 @@ jobs:
         setup_ak;
         EOF
         
+        # --- PERBAIKAN KRUSIAL: Berikan Izin Eksekusi Tertinggi Secara Paksa ---
+        chmod 755 AnyKernel/anykernel.sh
+        chmod -R 755 AnyKernel/tools/
+        chmod -R 755 AnyKernel/META-INF/
+
         # 3. Memasukkan file Image.gz-dtb hasil kompilasi baru ke folder AnyKernel
         cp out/arch/arm64/boot/Image.gz-dtb AnyKernel/
         

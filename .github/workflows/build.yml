@@ -5,11 +5,19 @@ on:
 
 jobs:
   build-kernel:
-    runs-on: ubuntu-latest # Menggunakan server terbaru yang langsung berjalan tanpa antre
+    runs-on: ubuntu-latest # Menggunakan server terbaru yang instan tanpa antre
 
     steps:
     - name: Checkout Kernel Source
       uses: actions/checkout@v3
+
+    # =========================================================
+    # --- METODE RESMI: SUNTIK PYTHON 2.7 VIA ACTIONS SETUP ---
+    # =========================================================
+    - name: Pasang Python 2.7 Resmi GitHub
+      uses: actions/setup-python@v5
+      with:
+        python-version: '2.7'
 
     - name: Set Up Build Dependencies
       run: |
@@ -31,21 +39,13 @@ jobs:
         wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/htc_9271.fw
         # 2. Firmware untuk TL-WN725N v3 (Realtek RTL8188EUS)
         wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/rtlwifi/rtl8188eufw.bin
-        # 3. Firmware Resmi untuk MediaTek MT7601U yang Benar
+        # 3. Firmware Resmi untuk MediaTek MT7601U
         wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7601u.bin
 
-    - name: Patch MediaTek TRNG & Python3 Compatibility for DrvGen
+    - name: Patch MediaTek TRNG (Bypass Makefile Error)
       run: |
-        # Bypass Makefile Error MediaTek TRNG
+        # Membersihkan Makefile TRNG agar tidak memicu kegagalan build
         sed -i '/obj-y += trng\//d' drivers/misc/mediatek/Makefile
-        
-        # PERBAIKAN AKURAT: Tangani kecocokan Python 3 untuk drvGen.py maupun DrvGen.py (Huruf Kapital)
-        if [ -f tools/dct/drvGen.py ]; then
-          sed -i "s/print \(.*\)/print(\1)/g" tools/dct/drvGen.py
-        fi
-        if [ -f tools/dct/DrvGen.py ]; then
-          sed -i "s/print \(.*\)/print(\1)/g" tools/dct/DrvGen.py
-        fi
 
     - name: Configure Kernel Defconfig & Inject NetHunter Multi-Driver Features
       run: |
@@ -54,7 +54,7 @@ jobs:
         make O=out oppo6765_defconfig
         
         # =========================================================
-        # --- 1. KONFIGURASI DUKUNGAN WIRELESS INTI (PANDUAN 1) ---
+        # --- 1. KONFIGURASI DUKUNGAN WIRELESS INTI --------------
         # =========================================================
         echo "CONFIG_WIRELESS=y" >> out/.config
         echo "CONFIG_CFG80211=y" >> out/.config
@@ -73,14 +73,14 @@ jobs:
         echo "CONFIG_ATH9K_HTC_DEBUGFS=y" >> out/.config
         
         # =========================================================
-        # --- 3. DRIVER SPESIFIK: TL-WN725N v3 (RTL8188EUS WAJIB) -
+        # --- 3. DRIVER SPESIFIK: TL-WN725N v3 (RTL8188EUS) -------
         # =========================================================
         echo "CONFIG_RTL8188EUS=y" >> out/.config
         echo "CONFIG_88EU_AP_MODE=y" >> out/.config
         echo "CONFIG_88EU_MONITOR_MODE=y" >> out/.config
         
         # =========================================================
-        # --- 4. DRIVER SPESIFIK: MEDIATEK MT7601U (PANDUAN 2) ----
+        # --- 4. DRIVER SPESIFIK: MEDIATEK MT7601U ----------------
         # =========================================================
         echo "CONFIG_MT7601U=y" >> out/.config
         

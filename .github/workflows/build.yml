@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-kernel:
-    runs-on: ubuntu-20.04 # KUNCI MENGGUNAKAN UBUNTU LAWAS (YANG PALING COCOK)
+    runs-on: ubuntu-latest # KUNCI MENGGUNAKAN UBUNTU LAWAS (YANG PALING COCOK)
 
     steps:
     - name: Checkout Kernel Source

@@ -5,24 +5,20 @@ on:
 
 jobs:
   build-kernel:
-    runs-on: ubuntu-latest # Menggunakan server terbaru yang instan tanpa antre
+    runs-on: ubuntu-22.04 # MUNDUR KE UBUNTU 22.04 (TEMPAT PYTHON 2 MASIH TERSEDIA LEGAL)
 
     steps:
     - name: Checkout Kernel Source
       uses: actions/checkout@v3
 
-    # =========================================================
-    # --- METODE RESMI: SUNTIK PYTHON 2.7 VIA ACTIONS SETUP ---
-    # =========================================================
-    - name: Pasang Python 2.7 Resmi GitHub
-      uses: actions/setup-python@v5
-      with:
-        python-version: '2.7'
-
-    - name: Set Up Build Dependencies
+    - name: Set Up Python 2.7 & Build Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev bison flex libelf-dev glibc-source libcap-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu zip git wget
+        # Pada Ubuntu 22.04, paket python2 masih tersedia secara resmi di repositori asli
+        sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev bison flex libelf-dev glibc-source libcap-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu zip git wget python2
+        
+        # Kunci perintah default "python" agar langsung mengeksekusi python2 bawaan sistem
+        sudo ln -sf /usr/bin/python2 /usr/bin/python
 
     - name: Inject Driver Pihak Ketiga TL-WN725N v3 (RTL8188EUS)
       run: |

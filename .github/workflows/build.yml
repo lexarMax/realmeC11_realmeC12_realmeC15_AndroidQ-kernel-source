@@ -1,11 +1,11 @@
-name: Build Kernel NetHunter Realme C15 (Dual Driver Wi-Fi)
+name: Build Kernel NetHunter Realme C15 (Ultimate Multi-Driver)
 
 on:
   workflow_dispatch: # Memunculkan tombol "Run Workflow" manual di web GitHub
 
 jobs:
   build-kernel:
-    runs-on: ubuntu-latest # KUNCI MENGGUNAKAN UBUNTU LAWAS (YANG PALING COCOK)
+    runs-on: ubuntu-latest # Menggunakan server terbaru yang langsung berjalan tanpa antre
 
     steps:
     - name: Checkout Kernel Source
@@ -14,55 +14,91 @@ jobs:
     - name: Set Up Build Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev bison flex libelf-dev glibc-source libcap-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu zip git wget python2
-        
-        # Atur agar perintah "python" default mengarah ke Python 2 bawaan Ubuntu 20.04
-        sudo ln -sf /usr/bin/python2 /usr/bin/python
+        sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev bison flex libelf-dev glibc-source libcap-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu zip git wget
 
-    - name: Inject Driver TP-Link TL-WN725N v3 (RTL8188EUS)
+    - name: Inject Driver Pihak Ketiga TL-WN725N v3 (RTL8188EUS)
       run: |
         cd drivers/net/wireless/
         git clone https://github.com/aircrack-ng/rtl8188eus.git --depth=1
         echo 'source "drivers/net/wireless/rtl8188eus/Kconfig"' >> Kconfig
         echo 'obj-$(CONFIG_RTL8188EUS) += rtl8188eus/' >> Makefile
 
-    - name: Download Firmware Paket Lengkap (RTL8188EUS & AR9271)
+    - name: Download Firmware Paket Lengkap (AR9271, RTL8188EUS, MT7601U)
       run: |
         mkdir -p firmware
         cd firmware
-        # Download firmware untuk TL-WN725N v3
-        wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/rtlwifi/rtl8188eufw.bin
-        # Download firmware resmi untuk TL-WN722N v1 (Atheros AR9271)
+        # 1. Firmware untuk TL-WN722N v1 (Atheros AR9271)
         wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/htc_9271.fw
+        # 2. Firmware untuk TL-WN725N v3 (Realtek RTL8188EUS)
+        wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/rtlwifi/rtl8188eufw.bin
+        # 3. Firmware Resmi Dukungan Penuh untuk MediaTek MT7601U
+        wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mt7601u.bin
 
-    - name: Patch MediaTek TRNG (Bypass Makefile Error)
+    - name: Patch MediaTek TRNG & Python3 Compatibility for drvGen
       run: |
+        # Bypass Makefile Error MediaTek TRNG
         sed -i '/obj-y += trng\//d' drivers/misc/mediatek/Makefile
+        
+        # Perbaikan otomatis sintaks drvGen agar kompatibel dengan Python 3 di ubuntu-latest
+        if [ -f tools/dct/drvGen.py ]; then
+          sed -i "s/print \(.*\)/print(\1)/g" tools/dct/drvGen.py
+        fi
 
-    - name: Configure Kernel Defconfig & Inject NetHunter Wireless Features
+    - name: Configure Kernel Defconfig & Inject NetHunter Multi-Driver Features
       run: |
         export ARCH=arm64
         export SUBARCH=arm64
         make O=out oppo6765_defconfig
         
-        # --- AKTIFKAN WIRELESS STACK INTI ---
+        # =========================================================
+        # --- 1. KONFIGURASI DUKUNGAN WIRELESS INTI (PANDUAN 1) ---
+        # =========================================================
         echo "CONFIG_WIRELESS=y" >> out/.config
         echo "CONFIG_CFG80211=y" >> out/.config
         echo "CONFIG_MAC80211=y" >> out/.config
+        echo "CONFIG_WLAN=y" >> out/.config
         
-        # --- DRIVER 1: TP-LINK TL-WN722N v1 (Atheros AR9271) ---
+        # =========================================================
+        # --- 2. DRIVER SPESIFIK: TL-WN722N v1 (ATH9K HTC) --------
+        # =========================================================
         echo "CONFIG_ATH_COMMON=y" >> out/.config
         echo "CONFIG_ATH_CARDS=y" >> out/.config
+        echo "CONFIG_ATH9K_HW=y" >> out/.config
+        echo "CONFIG_ATH9K_COMMON=y" >> out/.config
+        echo "CONFIG_ATH9K_BTCX=y" >> out/.config
         echo "CONFIG_ATH9K_HTC=y" >> out/.config
+        echo "CONFIG_ATH9K_HTC_DEBUGFS=y" >> out/.config
         
-        # --- DRIVER 2: TP-LINK TL-WN725N v3 (RTL8188EUS) ---
+        # =========================================================
+        # --- 3. DRIVER SPESIFIK: TL-WN725N v3 (RTL8188EUS WAJIB) -
+        # =========================================================
         echo "CONFIG_RTL8188EUS=y" >> out/.config
+        echo "CONFIG_88EU_AP_MODE=y" >> out/.config
+        echo "CONFIG_88EU_MONITOR_MODE=y" >> out/.config
         
-        # --- AKTIFKAN FITUR MONITOR MODE & INJECTION ---
+        # =========================================================
+        # --- 4. DRIVER SPESIFIK: MEDIATEK MT7601U (PANDUAN 2) ----
+        # =========================================================
+        echo "CONFIG_MT7601U=y" >> out/.config
+        
+        # =========================================================
+        # --- 5. KONFIGURASI MINSTREL RATIO (MONITOR & AP MODE) ---
+        # =========================================================
         echo "CONFIG_CFG80211_WEXT=y" >> out/.config
+        echo "CONFIG_MAC80211_RC_MINSTREL=y" >> out/.config
+        echo "CONFIG_MAC80211_RC_MINSTREL_HT=y" >> out/.config
+        echo "CONFIG_MAC80211_RC_DEFAULT_MINSTREL=y" >> out/.config
+        echo "CONFIG_MAC80211_LEDS=y" >> out/.config
+        echo "CONFIG_MAC80211_DEBUGFS=y" >> out/.config
         echo "CONFIG_MAC80211_MESH=y" >> out/.config
         
-        # --- AKTIFKAN FITUR NETFILTER (EVIL TWIN / CAPTIVE PORTAL) ---
+        # =========================================================
+        # --- 6. DUKUNGAN USB OTG NETWORKING & DRIVER STACK -------
+        # =========================================================
+        echo "CONFIG_USB_NET_DRIVERS=y" >> out/.config
+        echo "CONFIG_USB_USBNET=y" >> out/.config
+        
+        # --- NETFILTER & BRIDGING FOR EVIL TWIN / CAPTIVE PORTAL ---
         echo "CONFIG_BRIDGE=y" >> out/.config
         echo "CONFIG_NETFILTER=y" >> out/.config
         echo "CONFIG_NETFILTER_XT_MATCH_COMMENT=y" >> out/.config
@@ -71,9 +107,9 @@ jobs:
         echo "CONFIG_IP_NF_TARGET_REJECT=y" >> out/.config
         echo "CONFIG_IP_NF_MANGLE=y" >> out/.config
         
-        # --- JAHIT FIRMWARE KE DALAM INTI KERNEL ---
+        # --- JAHIT SEMUA FIRMWARE KE DALAM INTI KERNEL ---
         echo 'CONFIG_FIRMWARE_IN_KERNEL=y' >> out/.config
-        echo 'CONFIG_EXTRA_FIRMWARE="rtl8188eufw.bin htc_9271.fw"' >> out/.config
+        echo 'CONFIG_EXTRA_FIRMWARE="htc_9271.fw rtl8188eufw.bin mt7601u.bin"' >> out/.config
         echo 'CONFIG_EXTRA_FIRMWARE_DIR="firmware"' >> out/.config
         
         # Sinkronisasi Akhir konfigurasi
@@ -86,7 +122,6 @@ jobs:
         export CROSS_COMPILE=aarch64-linux-gnu-
         export KCFLAGS="-w -fno-pic -fno-strict-aliasing"
         export CFLAGS_MODULE="-w"
-        # Memicu pembuatan Image.gz-dtb secara otomatis sesuai standar MediaTek
         make O=out -j$(nproc --all) Image.gz-dtb
 
     - name: Package Kernel with Custom Verified AnyKernel Framework
@@ -107,7 +142,7 @@ jobs:
         ## AnyKernel setup
         # begin properties
         properties() { '
-        kernel.string=NetHunter Dual Driver Kernel
+        kernel.string=NetHunter Multi Driver Kernel
         do.devicecheck=0
         do.modules=0
         do.systemless=1
@@ -921,7 +956,7 @@ jobs:
         cp out/arch/arm64/boot/Image.gz-dtb AnyKernel/
         
         # 6. Membuat berkas teks banner pelengkap kosmetik
-        echo "NetHunter Dual Driver Kernel" > AnyKernel/banner
+        echo "NetHunter Multi Driver Kernel" > AnyKernel/banner
         
         # Bungkus menjadi file ZIP siap flash di TWRP
         cd AnyKernel

@@ -1,11 +1,11 @@
-name: Build Kernel NetHunter + KernelSU Next Realme C15 (Ubuntu 20.04)
+name: Build Kernel NetHunter Realme C15 (Dual Driver Wi-Fi)
 
 on:
   workflow_dispatch: # Memunculkan tombol "Run Workflow" manual di web GitHub
 
 jobs:
   build-kernel:
-    runs-on: ubuntu-latest # Tetap setia menggunakan server Ubuntu 20.04
+    runs-on: ubuntu-latest # Menggunakan server terbaru yang langsung jalan tanpa antre
 
     steps:
     - name: Checkout Kernel Source
@@ -16,11 +16,6 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev bison flex libelf-dev glibc-source libcap-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu zip git wget
 
-    - name: Integrasi KernelSU Next (Root Manager System)
-      run: |
-        # Mengunduh source code KernelSU Next resmi dan mengintegrasikannya ke kernel Realme
-        curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/main/kernel/setup.sh" | bash -s main
-
     - name: Inject Driver TP-Link TL-WN725N v3 (RTL8188EUS)
       run: |
         cd drivers/net/wireless/
@@ -28,36 +23,43 @@ jobs:
         echo 'source "drivers/net/wireless/rtl8188eus/Kconfig"' >> Kconfig
         echo 'obj-$(CONFIG_RTL8188EUS) += rtl8188eus/' >> Makefile
 
-    - name: Download Built-in Firmware
+    - name: Download Firmware Paket Lengkap (RTL8188EUS & AR9271)
       run: |
         mkdir -p firmware
         cd firmware
+        # Download firmware untuk TL-WN725N v3
         wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/rtlwifi/rtl8188eufw.bin
+        # Download firmware resmi untuk TL-WN722N v1 (Atheros AR9271)
+        wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/htc_9271.fw
 
     - name: Patch MediaTek TRNG (Bypass Makefile Error)
       run: |
         sed -i '/obj-y += trng\//d' drivers/misc/mediatek/Makefile
 
-    - name: Configure Kernel Defconfig & Inject NetHunter + KernelSU Next Features
+    - name: Configure Kernel Defconfig & Inject NetHunter Wireless Features
       run: |
         export ARCH=arm64
         export SUBARCH=arm64
         make O=out oppo6765_defconfig
         
-        # Aktifkan Fitur Utama KernelSU Next
-        echo "CONFIG_KSU=y" >> out/.config
-        echo "CONFIG_KSU_NEXT=y" >> out/.config
-        
-        # Aktifkan Driver TP-Link & Wireless Stack
+        # --- AKTIFKAN WIRELESS STACK INTI ---
         echo "CONFIG_WIRELESS=y" >> out/.config
         echo "CONFIG_CFG80211=y" >> out/.config
         echo "CONFIG_MAC80211=y" >> out/.config
+        
+        # --- DRIVER 1: TP-LINK TL-WN722N v1 (Atheros AR9271) ---
+        echo "CONFIG_ATH_COMMON=y" >> out/.config
+        echo "CONFIG_ATH_CARDS=y" >> out/.config
+        echo "CONFIG_ATH9K_HTC=y" >> out/.config
+        
+        # --- DRIVER 2: TP-LINK TL-WN725N v3 (RTL8188EUS) ---
         echo "CONFIG_RTL8188EUS=y" >> out/.config
         
-        # Aktifkan Penyamaran MAC Address (Spoofing)
+        # --- AKTIFKAN FITUR MONITOR MODE & INJECTION ---
+        echo "CONFIG_CFG80211_WEXT=y" >> out/.config
         echo "CONFIG_MAC80211_MESH=y" >> out/.config
         
-        # Aktifkan Fitur Jaringan untuk Evil Twin & Captive Portal
+        # --- AKTIFKAN FITUR NETFILTER (EVIL TWIN / CAPTIVE PORTAL) ---
         echo "CONFIG_BRIDGE=y" >> out/.config
         echo "CONFIG_NETFILTER=y" >> out/.config
         echo "CONFIG_NETFILTER_XT_MATCH_COMMENT=y" >> out/.config
@@ -66,12 +68,12 @@ jobs:
         echo "CONFIG_IP_NF_TARGET_REJECT=y" >> out/.config
         echo "CONFIG_IP_NF_MANGLE=y" >> out/.config
         
-        # Jahit Firmware ke Dalam Kernel
+        # --- JAHIT FIRMWARE KE DALAM INTI KERNEL ---
         echo 'CONFIG_FIRMWARE_IN_KERNEL=y' >> out/.config
-        echo 'CONFIG_EXTRA_FIRMWARE="rtl8188eufw.bin"' >> out/.config
+        echo 'CONFIG_EXTRA_FIRMWARE="rtl8188eufw.bin htc_9271.fw"' >> out/.config
         echo 'CONFIG_EXTRA_FIRMWARE_DIR="firmware"' >> out/.config
         
-        # Sinkronisasi Akhir
+        # Sinkronisasi Akhir konfigurasi
         make O=out oldconfig
 
     - name: Compile Kernel Image.gz
@@ -97,10 +99,10 @@ jobs:
         
         # Bungkus menjadi file ZIP siap flash di TWRP
         cd AnyKernel3
-        zip -r9 ../NetHunter-KSU-Next-RealmeC15.zip * -x .git* README.md
+        zip -r9 ../NetHunter-DualDriver-RealmeC15.zip * -x .git* README.md
 
     - name: Upload Flashable AnyKernel3 ZIP to GitHub
       uses: actions/upload-artifact@v4
       with:
-        name: NetHunter-KernelSU-Next-ZIP
-        path: NetHunter-KSU-Next-RealmeC15.zip
+        name: NetHunter-DualDriver-ZIP
+        path: NetHunter-DualDriver-RealmeC15.zip

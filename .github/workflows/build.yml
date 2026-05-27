@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-kernel:
-    runs-on: ubuntu-latest # Menggunakan server terbaru yang langsung jalan tanpa antre
+    runs-on: ubuntu-20.04 # KUNCI MENGGUNAKAN UBUNTU LAWAS (YANG PALING COCOK)
 
     steps:
     - name: Checkout Kernel Source
@@ -16,7 +16,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev bison flex libelf-dev glibc-source libcap-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu zip git wget python2
         
-        # --- PERBAIKAN UTAMA: Atur agar perintah "python" default mengarah ke Python 2 ---
+        # Atur agar perintah "python" default mengarah ke Python 2 bawaan Ubuntu 20.04
         sudo ln -sf /usr/bin/python2 /usr/bin/python
 
     - name: Inject Driver TP-Link TL-WN725N v3 (RTL8188EUS)

@@ -100,7 +100,7 @@ jobs:
         zip -r9 ../NetHunter-KSU-Next-RealmeC15.zip * -x .git* README.md
 
     - name: Upload Flashable AnyKernel3 ZIP to GitHub
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: NetHunter-KernelSU-Next-ZIP
         path: NetHunter-KSU-Next-RealmeC15.zip

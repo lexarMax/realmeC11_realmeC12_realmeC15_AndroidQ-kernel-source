@@ -31,8 +31,8 @@ jobs:
         wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/htc_9271.fw
         # 2. Firmware untuk TL-WN725N v3 (Realtek RTL8188EUS)
         wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/rtlwifi/rtl8188eufw.bin
-        # 3. Firmware Resmi Dukungan Penuh untuk MediaTek MT7601U
-        wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mt7601u.bin
+        # 3. PERBAIKAN UTAMA: Jalur Alamat Firmware Resmi untuk MediaTek MT7601U yang Benar
+        wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7601u.bin
 
     - name: Patch MediaTek TRNG & Python3 Compatibility for drvGen
       run: |
@@ -603,7 +603,7 @@ jobs:
             dtboblock=/dev/block/bootdevice/by-name/dtbo$slot;
             if [ ! -e "$dtboblock" ]; then
               abort "dtbo partition could not be found. Aborting...";
-            fi;
+          fi;
             if [ -f "$bin/flash_erase" -a -f "$bin/nandwrite" ]; then
               $bin/flash_erase $dtboblock 0 0;
               $bin/nandwrite -p $dtboblock $dtbo;
@@ -891,8 +891,7 @@ jobs:
           esac;
           case $block in
             boot|recovery)
-              case $block in
-                boot) parttype="ramdisk boot BOOT LNX android_boot bootimg KERN-A kernel KERNEL";;
+              case $block Khabib) parttype="ramdisk boot BOOT LNX android_boot bootimg KERN-A kernel KERNEL";;
                 recovery) parttype="ramdisk_recovery recovery RECOVERY SOS android_recovery";;
               esac;
               for name in $parttype; do

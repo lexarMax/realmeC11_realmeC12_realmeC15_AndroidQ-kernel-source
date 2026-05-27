@@ -1,0 +1,97 @@
+name: Build Kernel NetHunter Realme C15 (AnyKernel3 ZIP)
+
+on:
+  workflow_dispatch: # Memunculkan tombol "Run Workflow" manual di web GitHub
+
+jobs:
+  build-kernel:
+    runs-on: ubuntu-20.04
+
+    steps:
+    - name: Checkout Kernel Source
+      uses: actions/checkout@v3
+
+    - name: Set Up Build Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev bison flex libelf-dev glibc-source libcap-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu zip
+
+    - name: Inject Driver TP-Link TL-WN725N v3 (RTL8188EUS)
+      run: |
+        cd drivers/net/wireless/
+        git clone https://github.com/aircrack-ng/rtl8188eus.git --depth=1
+        echo 'source "drivers/net/wireless/rtl8188eus/Kconfig"' >> Kconfig
+        echo 'obj-$(CONFIG_RTL8188EUS) += rtl8188eus/' >> Makefile
+
+    - name: Download Built-in Firmware
+      run: |
+        mkdir -p firmware
+        cd firmware
+        wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/rtlwifi/rtl8188eufw.bin
+
+    - name: Patch MediaTek TRNG (Bypass Makefile Error)
+      run: |
+        sed -i '/obj-y += trng\//d' drivers/misc/mediatek/Makefile
+
+    - name: Configure Kernel Defconfig & Inject Evil Twin Features
+      run: |
+        export ARCH=arm64
+        export SUBARCH=arm64
+        make O=out oppo6765_defconfig
+        
+        # Aktifkan Driver & Wireless Stack
+        echo "CONFIG_WIRELESS=y" >> out/.config
+        echo "CONFIG_CFG80211=y" >> out/.config
+        echo "CONFIG_MAC80211=y" >> out/.config
+        echo "CONFIG_RTL8188EUS=y" >> out/.config
+        
+        # Aktifkan Penyamaran MAC Address (Spoofing)
+        echo "CONFIG_MAC80211_MESH=y" >> out/.config
+        
+        # Aktifkan Fitur Jaringan untuk Evil Twin & Captive Portal
+        echo "CONFIG_BRIDGE=y" >> out/.config
+        echo "CONFIG_NETFILTER=y" >> out/.config
+        echo "CONFIG_NETFILTER_XT_MATCH_COMMENT=y" >> out/.config
+        echo "CONFIG_IP_NF_IPTABLES=y" >> out/.config
+        echo "CONFIG_IP_NF_FILTER=y" >> out/.config
+        echo "CONFIG_IP_NF_TARGET_REJECT=y" >> out/.config
+        echo "CONFIG_IP_NF_MANGLE=y" >> out/.config
+        
+        # Jahit Firmware ke Dalam Kernel
+        echo 'CONFIG_FIRMWARE_IN_KERNEL=y' >> out/.config
+        echo 'CONFIG_EXTRA_FIRMWARE="rtl8188eufw.bin"' >> out/.config
+        echo 'CONFIG_EXTRA_FIRMWARE_DIR="firmware"' >> out/.config
+        
+        # Sinkronisasi Akhir
+        make O=out oldconfig
+
+    - name: Compile Kernel Image.gz
+      run: |
+        export ARCH=arm64
+        export SUBARCH=arm64
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        export KCFLAGS="-w -fno-pic -fno-strict-aliasing"
+        export CFLAGS_MODULE="-w"
+        make O=out -j$(nproc --all) Image.gz
+
+    - name: Package Kernel with AnyKernel3
+      run: |
+        # Clone template resmi AnyKernel3
+        git clone https://github.com/osm0sis/AnyKernel3.git --depth=1 AnyKernel3
+        
+        # Konfigurasi target partisi boot untuk MediaTek Realme C15 (mt6765)
+        sed -i 's/block=\/dev\/block\/platform\/omap\/omap_hsmmc.0\/by-name\/boot;/block=auto;/g' AnyKernel3/anykernel.sh
+        sed -i 's/is_slot_device=0;/is_slot_device=auto;/g' AnyKernel3/anykernel.sh
+        
+        # Masukkan file Image.gz yang sudah matang ke folder AnyKernel3
+        cp out/arch/arm64/boot/Image.gz AnyKernel3/
+        
+        # Bungkus menjadi file ZIP siap flash
+        cd AnyKernel3
+        zip -r9 ../NetHunter-Kernel-RealmeC15-v3.zip * -x .git* README.md
+
+    - name: Upload Flashable AnyKernel3 ZIP to GitHub
+      uses: actions/upload-artifact@v3
+      with:
+        name: NetHunter-Flashable-ZIP
+        path: NetHunter-Kernel-RealmeC15-v3.zip

@@ -1,4 +1,4 @@
-name: Build Kernel NetHunter C11 & C15 (Clean-Boot Dynamic Pack)
+name: Build Kernel NetHunter C11 & C15 (Exclusive Monolithic TL-WN725N v3)
 
 on:
   workflow_dispatch:
@@ -20,62 +20,58 @@ jobs:
         sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev bison flex libelf-dev glibc-source libcap-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu zip git wget python2
         sudo ln -sf /usr/bin/python2 /usr/bin/python
 
-    - name: Inject Driver Pihak Ketiga TL-WN725N v3 (RTL8188EUS)
+    - name: Inject Driver Utama TL-WN725N v3 (RTL8188EUS)
       run: |
         cd drivers/net/wireless/
         git clone https://github.com/aircrack-ng/rtl8188eus.git --depth=1
         echo 'source "drivers/net/wireless/rtl8188eus/Kconfig"' >> Kconfig
         echo 'obj-$(CONFIG_RTL8188EUS) += rtl8188eus/' >> Makefile
 
-    - name: Download Firmware Pack
+    - name: Download Firmware Resmi RTL8188EUS
       run: |
         mkdir -p firmware_pack
         cd firmware_pack
-        wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/htc_9271.fw
         wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/rtlwifi/rtl8188eufw.bin
-        wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7601u.bin
 
     - name: Patch MediaTek TRNG (Bypass Makefile Error)
       run: |
         sed -i '/obj-y += trng\//d' drivers/misc/mediatek/Makefile
 
-    - name: Configure Kernel Defconfig & Inject Isolated Modules
+    - name: Configure Kernel Defconfig & Inject Monolithic Realtek Wi-Fi
       run: |
         export ARCH=arm64
         export SUBARCH=arm64
         make O=out oppo6765_defconfig
         
-        # --- SOLUSI BOOTLOOP: ISOLASI SELURUH WIRELESS STACK SEBAGAI MODUL EXTERNAL (=m) ---
+        # =========================================================
+        # --- 1. JAHIT INTI WIRELESS MONOLITIK LANGSUNG KE KERNEL --
+        # =========================================================
         echo "CONFIG_WIRELESS=y" >> out/.config
-        echo "CONFIG_CFG80211=m" >> out/.config
-        echo "CONFIG_MAC80211=m" >> out/.config
+        echo "CONFIG_CFG80211=y" >> out/.config
         echo "CONFIG_WLAN=y" >> out/.config
         echo "CONFIG_NET=y" >> out/.config
         
-        # --- DRIVER ADAPTER SEBAGAI MODUL TERISOLASI ---
-        echo "CONFIG_ATH_COMMON=m" >> out/.config
-        echo "CONFIG_ATH_CARDS=m" >> out/.config
-        echo "CONFIG_ATH9K_HW=m" >> out/.config
-        echo "CONFIG_ATH9K_COMMON=m" >> out/.config
-        echo "CONFIG_ATH9K_BTCX=y" >> out/.config
-        echo "CONFIG_ATH9K_HTC=m" >> out/.config
-        echo "CONFIG_ATH9K_HTC_DEBUGFS=y" >> out/.config
-        echo "CONFIG_RTL8188EUS=m" >> out/.config
+        # --- MATIKAN MAC80211 UNTUK MEMBUANG ERROR UNDEFINED SYMBOL & STUCK LOGO ---
+        echo "CONFIG_MAC80211=n" >> out/.config
+        
+        # =========================================================
+        # --- 2. JAHIT DRIVER REALTEK SECARA MONOLITIK (=y) -------
+        # =========================================================
+        echo "CONFIG_RTL8188EUS=y" >> out/.config
         echo "CONFIG_88EU_AP_MODE=y" >> out/.config
         echo "CONFIG_88EU_MONITOR_MODE=y" >> out/.config
         echo "CONFIG_CONCURRENT_MODE=y" >> out/.config
-        echo "CONFIG_MT7601U=m" >> out/.config
         
-        # --- ADVANCED NETFILTER & INJECTION (TETAP AKTIF UNTUK CHROOT) ---
+        # --- BERSIHKAN DRIVER LAIN AGAR TIDAK TERJADI BENTROKAN KERNEL ---
+        echo "CONFIG_ATH_CARDS=n" >> out/.config
+        echo "CONFIG_MT7601U=n" >> out/.config
+        
+        # =========================================================
+        # --- 3. SUBSISTEM ADVANCED ROUTING & ANTI NETLINK ERROR --
+        # =========================================================
         echo "CONFIG_CFG80211_WEXT=y" >> out/.config
         echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n" >> out/.config
         echo "CONFIG_CFG80211_CRDA_SUPPORT=y" >> out/.config
-        echo "CONFIG_MAC80211_RC_MINSTREL=y" >> out/.config
-        echo "CONFIG_MAC80211_RC_MINSTREL_HT=y" >> out/.config
-        echo "CONFIG_MAC80211_RC_DEFAULT_MINSTREL=y" >> out/.config
-        echo "CONFIG_MAC80211_LEDS=y" >> out/.config
-        echo "CONFIG_MAC80211_DEBUGFS=y" >> out/.config
-        echo "CONFIG_MAC80211_MESH=y" >> out/.config
         echo "CONFIG_USB_SUPPORT=y" >> out/.config
         echo "CONFIG_USB_NET_DRIVERS=y" >> out/.config
         echo "CONFIG_USB_USBNET=y" >> out/.config
@@ -91,31 +87,34 @@ jobs:
         echo "CONFIG_IP_NF_MANGLE=y" >> out/.config
         echo "CONFIG_IP_NF_NAT=y" >> out/.config
         
+        # PASTIKAN PENGUNCIAN METODE MODUL DINAMIS DIMATIKAN
         echo 'CONFIG_FIRMWARE_IN_KERNEL=n' >> out/.config
         
         make O=out oldconfig
 
-    - name: Compile Kernel Image.gz-dtb & Modules
+    - name: Compile Kernel Image.gz-dtb (Pure Monolithic)
       run: |
         export ARCH=arm64
         export SUBARCH=arm64
         export CROSS_COMPILE=aarch64-linux-gnu-
         export KCFLAGS="-w -fno-pic -fno-strict-aliasing"
         export CFLAGS_MODULE="-w"
-        make O=out -j$(nproc --all) Image.gz-dtb modules
+        # Hanya mengompilasi file gambar inti kernel saja, tidak memproduksi berkas .ko eksternal
+        make O=out -j$(nproc --all) Image.gz-dtb
 
     - name: Package Kernel with Git-Cloned Verified AnyKernel Framework
       run: |
         git clone https://github.com/osm0sis/AnyKernel3.git --depth=1 AnyKernel
         rm -f AnyKernel/README.md AnyKernel/anykernel.sh AnyKernel/tools/ak3-core.sh
         
-        # 1. Tulis ulang anykernel.sh (do.modules=0 agar sistem utama tetap murni dan stabil)
+        # 1. Konfigurasi anykernel.sh (do.modules=0 karena semua driver sudah menyatu di kernel)
         cat << 'EOF' > AnyKernel/anykernel.sh
         # AnyKernel3 Ramdisk Mod Script
         # osm0sis @ xda-developers
 
+        ## AnyKernel setup
         properties() { '
-        kernel.string=NetHunter Clean-Boot Kernel (C11/C15)
+        kernel.string=NetHunter Monolithic Realtek (C11/C15)
         do.devicecheck=1
         do.modules=0
         do.systemless=1
@@ -167,7 +166,7 @@ jobs:
           cd $home;
           if [ -f boot-new.img ]; then
             dd if=boot-new.img of=$block bs=1048576 2>/dev/null;
-            ui_print "-> Penyuntikan Kernel Sukses!";
+            ui_print "-> Penyuntikan Kernel Monolitik Sukses!";
           else
             dd if=$home/Image.gz-dtb of=$block bs=1048576 2>/dev/null;
             ui_print "-> Fallback Direct Flashing Berhasil!";
@@ -179,24 +178,17 @@ jobs:
         chmod -R 755 AnyKernel/tools/
 
         cp out/arch/arm64/boot/Image.gz-dtb AnyKernel/
-        echo "NetHunter Clean-Boot Kernel" > AnyKernel/banner
+        echo "NetHunter Monolithic Realtek" > AnyKernel/banner
         
-        # --- STRATEGI ISOLASI AMAN ---
-        # Seluruh file modul (.ko) dan firmware diletakkan di folder luar eksternal (sdcard/nh_drivers) 
-        # sehingga tidak mengganggu Android utama dan bisa kita muat secara dinamis
-        mkdir -p AnyKernel/nh_drivers/modules
-        mkdir -p AnyKernel/nh_drivers/firmware/mediatek
-        
-        find out/ -name "*.ko" -exec cp {} AnyKernel/nh_drivers/modules/ \;
-        cp firmware_pack/htc_9271.fw AnyKernel/nh_drivers/firmware/
-        cp firmware_pack/rtl8188eufw.bin AnyKernel/nh_drivers/firmware/
-        cp firmware_pack/mt7601u.bin AnyKernel/nh_drivers/firmware/mediatek/
+        # --- INJEKSI OTOMATIS BERKAS FIRMWARE FISIK KE VENDOR ANDROID ---
+        mkdir -p AnyKernel/modules/vendor/firmware
+        cp firmware_pack/rtl8188eufw.bin AnyKernel/modules/vendor/firmware/
         
         cd AnyKernel
-        zip -r9 ../NetHunter-CleanBoot-C11-C15.zip *
+        zip -r9 ../NetHunter-Monolithic-RTL8188EUS.zip *
 
     - name: Upload Flashable AnyKernel3 ZIP to GitHub
       uses: actions/upload-artifact@v4
       with:
-        name: NetHunter-CleanBoot-ZIP
-        path: NetHunter-CleanBoot-C11-C15.zip
+        name: NetHunter-Monolithic-ZIP
+        path: NetHunter-Monolithic-RTL8188EUS.zip

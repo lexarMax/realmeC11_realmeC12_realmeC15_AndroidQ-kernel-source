@@ -1,4 +1,4 @@
-name: Build Kernel NetHunter Realme C11 & C15 (Module Dynamic Driver)
+name: Build Kernel NetHunter C11 & C15 (Ultimate Auto-Load & Firmware Pack)
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ env:
 
 jobs:
   build-kernel:
-    runs-on: ubuntu-22.04 # Server stabil untuk kompatibilitas Python 2 secara native
+    runs-on: ubuntu-22.04
 
     steps:
     - name: Checkout Kernel Source
@@ -27,24 +27,33 @@ jobs:
         echo 'source "drivers/net/wireless/rtl8188eus/Kconfig"' >> Kconfig
         echo 'obj-$(CONFIG_RTL8188EUS) += rtl8188eus/' >> Makefile
 
+    - name: Download Firmware Master List (Untuk Disuntikkan ke ZIP)
+      run: |
+        mkdir -p firmware_pack
+        cd firmware_pack
+        # Mengunduh 3 berkas firmware resmi untuk kebutuhan runtime di HP Realme
+        wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/htc_9271.fw
+        wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/rtlwifi/rtl8188eufw.bin
+        wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7601u.bin
+
     - name: Patch MediaTek TRNG (Bypass Makefile Error)
       run: |
         sed -i '/obj-y += trng\//d' drivers/misc/mediatek/Makefile
 
-    - name: Configure Kernel Defconfig & Inject NetHunter Dynamic Module Features
+    - name: Configure Kernel Defconfig & Inject NetHunter Multi-Driver Features
       run: |
         export ARCH=arm64
         export SUBARCH=arm64
         make O=out oppo6765_defconfig
         
-        # --- PERBAIKAN UTAMA: STACK WIRELESS INTI KEMBALI KE KERNEL (=y) UNTUK SOLUSI UNDEFINED SYMBOL ---
+        # --- CORE WIRELESS STACK (MONOLITIK) ---
         echo "CONFIG_WIRELESS=y" >> out/.config
         echo "CONFIG_CFG80211=y" >> out/.config
         echo "CONFIG_MAC80211=y" >> out/.config
         echo "CONFIG_WLAN=y" >> out/.config
         echo "CONFIG_NET=y" >> out/.config
         
-        # --- DRIVER UTAMA ADAPTER TETAP SEBAGAI MODUL DINAMIS (=m) UNTUK MENCEGAH REBOOT/CRASH ---
+        # --- DRIVER ADAPTER (MODUL DINAMIS =m UNTUK AUTO-LOAD) ---
         echo "CONFIG_ATH_COMMON=m" >> out/.config
         echo "CONFIG_ATH_CARDS=m" >> out/.config
         echo "CONFIG_ATH9K_HW=m" >> out/.config
@@ -58,7 +67,7 @@ jobs:
         echo "CONFIG_CONCURRENT_MODE=y" >> out/.config
         echo "CONFIG_MT7601U=m" >> out/.config
         
-        # --- OPTIMASI ADVANCED INJECTION & REGULASI DAYA ---
+        # --- OPTIMASI INJECTION & REGULASI DAYA PANCAR ---
         echo "CONFIG_CFG80211_WEXT=y" >> out/.config
         echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n" >> out/.config
         echo "CONFIG_CFG80211_CRDA_SUPPORT=y" >> out/.config
@@ -73,7 +82,7 @@ jobs:
         echo "CONFIG_USB_USBNET=y" >> out/.config
         echo "CONFIG_USB_NET_CDCETHER=y" >> out/.config
         
-        # --- SUBSISTEM NETWORK MITM & PACKET INJECTION (FLUXION/AIRGEDDON) ---
+        # --- NETFILTER ROUTING TINGKAT LANJUT (FLUXION / AIRGEDDON) ---
         echo "CONFIG_BPF_SYSCALL=y" >> out/.config
         echo "CONFIG_BRIDGE=y" >> out/.config
         echo "CONFIG_NETFILTER=y" >> out/.config
@@ -85,7 +94,7 @@ jobs:
         echo "CONFIG_IP_NF_MANGLE=y" >> out/.config
         echo "CONFIG_IP_NF_NAT=y" >> out/.config
         
-        # PENGUNCIAN METODE MODUL (MATIKAN METODE MONOLITIK YANG MEMICU REBOOT)
+        # NONAKTIFKAN METODE LAMA AGAR TIDAK MEMICU KEPANIKAN KERNEL
         echo 'CONFIG_FIRMWARE_IN_KERNEL=n' >> out/.config
         
         make O=out oldconfig
@@ -104,14 +113,14 @@ jobs:
         git clone https://github.com/osm0sis/AnyKernel3.git --depth=1 AnyKernel
         rm -f AnyKernel/README.md AnyKernel/anykernel.sh AnyKernel/tools/ak3-core.sh
         
-        # 1. Tulis ulang file anykernel.sh dengan mendaftarkan CODENAME REALME C11 & C15
+        # 1. Konfigurasi anykernel.sh dengan mendeteksi modul & firmware otomatis
         cat << 'EOF' > AnyKernel/anykernel.sh
         # AnyKernel3 Ramdisk Mod Script
         # osm0sis @ xda-developers
 
         ## AnyKernel setup
         properties() { '
-        kernel.string=NetHunter Multi-OS Kernel (C11/C15)
+        kernel.string=NetHunter Pack Auto-Load (C11/C15)
         do.devicecheck=1
         do.modules=1
         do.systemless=1
@@ -163,7 +172,7 @@ jobs:
           cd $home;
           if [ -f boot-new.img ]; then
             dd if=boot-new.img of=$block bs=1048576 2>/dev/null;
-            ui_print "-> Penyuntikan Kernel C11/C15 Sukses!";
+            ui_print "-> Penyuntikan Kernel Auto-Load Sukses!";
           else
             dd if=$home/Image.gz-dtb of=$block bs=1048576 2>/dev/null;
             ui_print "-> Fallback Direct Flashing Berhasil!";
@@ -171,24 +180,28 @@ jobs:
         }
         EOF
 
-        # Amankan izin eksekusi
         chmod 755 AnyKernel/anykernel.sh
         chmod -R 755 AnyKernel/tools/
 
-        # Salin file biner kernel utama
         cp out/arch/arm64/boot/Image.gz-dtb AnyKernel/
-        echo "NetHunter Dual-Support Kernel" > AnyKernel/banner
+        echo "NetHunter Ultimate Pack Kernel" > AnyKernel/banner
         
-        # Buat folder khusus internal AnyKernel untuk menampung file modul .ko hasil kompilasi
-        mkdir -p AnyKernel/modules/system/lib/modules
-        find out/ -name "*.ko" -exec cp {} AnyKernel/modules/system/lib/modules/ \;
+        # --- 1. PROSES OTOMATISASI: SUNTIK MODUL DRIVER (.ko) ---
+        mkdir -p AnyKernel/modules/vendor/lib/modules
+        find out/ -name "*.ko" -exec cp {} AnyKernel/modules/vendor/lib/modules/ \;
         
-        # Kompresi menjadi berkas ZIP siap flash
+        # --- 2. PROSES OTOMATISASI: SUNTIK BINARY FIRMWARE (.fw / .bin) ---
+        # Membuat folder bayangan di AnyKernel agar TWRP otomatis menyalin berkas firmware fisik ke partisi vendor HP Realme Anda saat di-flash!
+        mkdir -p AnyKernel/modules/vendor/firmware/mediatek
+        cp firmware_pack/htc_9271.fw AnyKernel/modules/vendor/firmware/
+        cp firmware_pack/rtl8188eufw.bin AnyKernel/modules/vendor/firmware/
+        cp firmware_pack/mt7601u.bin AnyKernel/modules/vendor/firmware/mediatek/
+        
         cd AnyKernel
-        zip -r9 ../NetHunter-C11-C15-HelioG35.zip *
+        zip -r9 ../NetHunter-C11-C15-UltimatePack.zip *
 
     - name: Upload Flashable AnyKernel3 ZIP to GitHub
       uses: actions/upload-artifact@v4
       with:
-        name: NetHunter-C11-C15-ZIP
-        path: NetHunter-C11-C15-HelioG35.zip
+        name: NetHunter-UltimatePack-ZIP
+        path: NetHunter-C11-C15-UltimatePack.zip

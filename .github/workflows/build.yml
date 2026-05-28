@@ -1,4 +1,4 @@
-name: Build Kernel NetHunter Realme C15 (Ultimate Multi-Driver)
+name: Build Kernel NetHunter Realme C11 & C15 (Module Dynamic Driver)
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ env:
 
 jobs:
   build-kernel:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-22.04 # Server stabil untuk kompatibilitas Python 2 secara native
 
     steps:
     - name: Checkout Kernel Source
@@ -18,7 +18,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev bison flex libelf-dev glibc-source libcap-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu zip git wget python2
-        sudo ln -sf /usr/bin/python2 /usr/bin/python
+        sudo ln (sf /usr/bin/python2 /usr/bin/python
 
     - name: Inject Driver Pihak Ketiga TL-WN725N v3 (RTL8188EUS)
       run: |
@@ -27,46 +27,38 @@ jobs:
         echo 'source "drivers/net/wireless/rtl8188eus/Kconfig"' >> Kconfig
         echo 'obj-$(CONFIG_RTL8188EUS) += rtl8188eus/' >> Makefile
 
-    - name: Download Firmware Paket Lengkap (AR9271, RTL8188EUS, MT7601U)
-      run: |
-        mkdir -p firmware
-        cd firmware
-        wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/htc_9271.fw
-        wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/rtlwifi/rtl8188eufw.bin
-        wget https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7601u.bin
-
     - name: Patch MediaTek TRNG (Bypass Makefile Error)
       run: |
         sed -i '/obj-y += trng\//d' drivers/misc/mediatek/Makefile
 
-    - name: Configure Kernel Defconfig & Inject NetHunter Multi-Driver Features
+    - name: Configure Kernel Defconfig & Inject NetHunter Dynamic Module Features
       run: |
         export ARCH=arm64
         export SUBARCH=arm64
         make O=out oppo6765_defconfig
         
-        # --- CORE WIRELESS STACK ---
+        # --- AKTIFKAN CFG80211 & MAC80211 SEBAGAI MODUL DINAMIS (=m) ---
         echo "CONFIG_WIRELESS=y" >> out/.config
-        echo "CONFIG_CFG80211=y" >> out/.config
-        echo "CONFIG_MAC80211=y" >> out/.config
+        echo "CONFIG_CFG80211=m" >> out/.config
+        echo "CONFIG_MAC80211=m" >> out/.config
         echo "CONFIG_WLAN=y" >> out/.config
         echo "CONFIG_NET=y" >> out/.config
         
-        # --- DRIVER INJECTION ---
-        echo "CONFIG_ATH_COMMON=y" >> out/.config
-        echo "CONFIG_ATH_CARDS=y" >> out/.config
-        echo "CONFIG_ATH9K_HW=y" >> out/.config
-        echo "CONFIG_ATH9K_COMMON=y" >> out/.config
+        # --- DRIVER 3 ADAPTER WI-FI SEBAGAI MODUL (ANTI CRASH / FREEZE) ---
+        echo "CONFIG_ATH_COMMON=m" >> out/.config
+        echo "CONFIG_ATH_CARDS=m" >> out/.config
+        echo "CONFIG_ATH9K_HW=m" >> out/.config
+        echo "CONFIG_ATH9K_COMMON=m" >> out/.config
         echo "CONFIG_ATH9K_BTCX=y" >> out/.config
-        echo "CONFIG_ATH9K_HTC=y" >> out/.config
+        echo "CONFIG_ATH9K_HTC=m" >> out/.config
         echo "CONFIG_ATH9K_HTC_DEBUGFS=y" >> out/.config
-        echo "CONFIG_RTL8188EUS=y" >> out/.config
+        echo "CONFIG_RTL8188EUS=m" >> out/.config
         echo "CONFIG_88EU_AP_MODE=y" >> out/.config
         echo "CONFIG_88EU_MONITOR_MODE=y" >> out/.config
         echo "CONFIG_CONCURRENT_MODE=y" >> out/.config
-        echo "CONFIG_MT7601U=y" >> out/.config
+        echo "CONFIG_MT7601U=m" >> out/.config
         
-        # --- NETHUNTER INJECTION STUFF ---
+        # --- OPTIMASI ADVANCED INJECTION & REGULASI DAYA ---
         echo "CONFIG_CFG80211_WEXT=y" >> out/.config
         echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n" >> out/.config
         echo "CONFIG_CFG80211_CRDA_SUPPORT=y" >> out/.config
@@ -80,6 +72,8 @@ jobs:
         echo "CONFIG_USB_NET_DRIVERS=y" >> out/.config
         echo "CONFIG_USB_USBNET=y" >> out/.config
         echo "CONFIG_USB_NET_CDCETHER=y" >> out/.config
+        
+        # --- SUBSISTEM NETWORK MITM & PACKET INJECTION (FLUXION/AIRGEDDON) ---
         echo "CONFIG_BPF_SYSCALL=y" >> out/.config
         echo "CONFIG_BRIDGE=y" >> out/.config
         echo "CONFIG_NETFILTER=y" >> out/.config
@@ -91,63 +85,55 @@ jobs:
         echo "CONFIG_IP_NF_MANGLE=y" >> out/.config
         echo "CONFIG_IP_NF_NAT=y" >> out/.config
         
-        # --- INTEGRASI FIRMWARE UTUH ---
-        echo 'CONFIG_FIRMWARE_IN_KERNEL=y' >> out/.config
-        echo 'CONFIG_EXTRA_FIRMWARE="htc_9271.fw rtl8188eufw.bin mt7601u.bin"' >> out/.config
-        echo 'CONFIG_EXTRA_FIRMWARE_DIR="firmware"' >> out/.config
+        # PENGUNCIAN METODE MODUL (MATIKAN METODE MONOLITIK YANG MEMICU REBOOT)
+        echo 'CONFIG_FIRMWARE_IN_KERNEL=n' >> out/.config
         
         make O=out oldconfig
 
-    - name: Compile Kernel Image.gz-dtb
+    - name: Compile Kernel Image.gz-dtb & Modules
       run: |
         export ARCH=arm64
         export SUBARCH=arm64
         export CROSS_COMPILE=aarch64-linux-gnu-
         export KCFLAGS="-w -fno-pic -fno-strict-aliasing"
         export CFLAGS_MODULE="-w"
-        make O=out -j$(nproc --all) Image.gz-dtb
+        make O=out -j$(nproc --all) Image.gz-dtb modules
 
     - name: Package Kernel with Git-Cloned Verified AnyKernel Framework
       run: |
-        # Kloning kerangka AnyKernel3 resmi versi stabil
         git clone https://github.com/osm0sis/AnyKernel3.git --depth=1 AnyKernel
         rm -f AnyKernel/README.md AnyKernel/anykernel.sh AnyKernel/tools/ak3-core.sh
         
-        # 1. Menulis ulang file anykernel.sh dengan mode deteksi kembar otomatis yang ramah MediaTek
+        # 1. Tulis ulang file anykernel.sh dengan mendaftarkan CODENAME REALME C11 (RMX2185)
         cat << 'EOF' > AnyKernel/anykernel.sh
         # AnyKernel3 Ramdisk Mod Script
         # osm0sis @ xda-developers
 
         ## AnyKernel setup
         properties() { '
-        kernel.string=NetHunter Multi Driver Kernel
-        do.devicecheck=0
-        do.modules=0
+        kernel.string=NetHunter Multi-OS Kernel (C11/C15)
+        do.devicecheck=1
+        do.modules=1
         do.systemless=1
         do.cleanup=1
         do.cleanuponabort=0
         device.name1=RMX2185
-        device.name2=RMX2180
-        device.name3=Realme C15
+        device.name2=RMX2189
+        device.name3=RMX2180
+        device.name4=oppo6765
         '; }
 
-        # Konfigurasi blok partisi boot universal langsung
         block=/dev/block/by-name/boot;
         is_slot_device=0;
         ramdisk_compression=auto;
 
-        ## Import patch inti internal bawaan osm0sis
         . tools/ak3-core.sh;
 
-        ## Eksekusi utama pembongkaran aman
         split_boot;
-
-        # Jika pembongkaran ramdisk gagal atau tidak dibutuhkan, AnyKernel akan langsung
-        # menyuntikkan kernel baru (Image.gz-dtb) ke dalam struktur boot asli MediaTek
         flash_boot;
         EOF
 
-        # 2. Membuat ulang tools/ak3-core.sh versi modifikasi ringan agar mengabaikan error pembongkaran header berskala kecil
+        # 2. Tulis ulang tools/ak3-core.sh versi modifikasi direct bypass MediaTek
         cat << 'EOF' > AnyKernel/tools/ak3-core.sh
         OUTFD=$1;
         test "$home" || home=$PWD;
@@ -177,29 +163,32 @@ jobs:
           cd $home;
           if [ -f boot-new.img ]; then
             dd if=boot-new.img of=$block bs=1048576 2>/dev/null;
-            ui_print "-> Flashing Kernel NetHunter Sukses!";
+            ui_print "-> Penyuntikan Kernel C11/C15 Sukses!";
           else
-            # Metode fallback darurat jika magiskboot gagal merestrukturisasi berkas image
             dd if=$home/Image.gz-dtb of=$block bs=1048576 2>/dev/null;
             ui_print "-> Fallback Direct Flashing Berhasil!";
           fi;
         }
         EOF
 
-        # Amankan perizinan file eksekusi
+        # Amankan izin eksekusi
         chmod 755 AnyKernel/anykernel.sh
         chmod -R 755 AnyKernel/tools/
 
-        # Pindahkan file kernel kompilasi baru ke dalam paket ramah flash
+        # Salin file biner kernel utama
         cp out/arch/arm64/boot/Image.gz-dtb AnyKernel/
-        echo "NetHunter Multi Driver Kernel" > AnyKernel/banner
+        echo "NetHunter Dual-Support Kernel" > AnyKernel/banner
         
-        # Kompresi final menjadi file ZIP
+        # Buat folder khusus internal AnyKernel untuk menampung file modul .ko hasil kompilasi
+        mkdir -p AnyKernel/modules/system/lib/modules
+        find out/ -name "*.ko" -exec cp {} AnyKernel/modules/system/lib/modules/ \;
+        
+        # Kompresi menjadi berkas ZIP siap flash
         cd AnyKernel
-        zip -r9 ../NetHunter-DualDriver-RealmeC15.zip *
+        zip -r9 ../NetHunter-C11-C15-HelioG35.zip *
 
     - name: Upload Flashable AnyKernel3 ZIP to GitHub
       uses: actions/upload-artifact@v4
       with:
-        name: NetHunter-DualDriver-ZIP
-        path: NetHunter-DualDriver-RealmeC15.zip
+        name: NetHunter-C11-C15-ZIP
+        path: NetHunter-C11-C15-HelioG35.zip

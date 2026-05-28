@@ -18,7 +18,8 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev bison flex libelf-dev glibc-source libcap-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu zip git wget python2
-        sudo ln (sf /usr/bin/python2 /usr/bin/python
+        # PERBAIKAN: Menggunakan parameter -sf yang benar tanpa typo tanda kurung
+        sudo ln -sf /usr/bin/python2 /usr/bin/python
 
     - name: Inject Driver Pihak Ketiga TL-WN725N v3 (RTL8188EUS)
       run: |
@@ -104,7 +105,7 @@ jobs:
         git clone https://github.com/osm0sis/AnyKernel3.git --depth=1 AnyKernel
         rm -f AnyKernel/README.md AnyKernel/anykernel.sh AnyKernel/tools/ak3-core.sh
         
-        # 1. Tulis ulang file anykernel.sh dengan mendaftarkan CODENAME REALME C11 (RMX2185)
+        # 1. Tulis ulang file anykernel.sh dengan mendaftarkan CODENAME REALME C11 & C15
         cat << 'EOF' > AnyKernel/anykernel.sh
         # AnyKernel3 Ramdisk Mod Script
         # osm0sis @ xda-developers

@@ -18,7 +18,6 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev bison flex libelf-dev glibc-source libcap-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu zip git wget python2
-        # PERBAIKAN: Menggunakan parameter -sf yang benar tanpa typo tanda kurung
         sudo ln -sf /usr/bin/python2 /usr/bin/python
 
     - name: Inject Driver Pihak Ketiga TL-WN725N v3 (RTL8188EUS)
@@ -38,14 +37,14 @@ jobs:
         export SUBARCH=arm64
         make O=out oppo6765_defconfig
         
-        # --- AKTIFKAN CFG80211 & MAC80211 SEBAGAI MODUL DINAMIS (=m) ---
+        # --- PERBAIKAN UTAMA: STACK WIRELESS INTI KEMBALI KE KERNEL (=y) UNTUK SOLUSI UNDEFINED SYMBOL ---
         echo "CONFIG_WIRELESS=y" >> out/.config
-        echo "CONFIG_CFG80211=m" >> out/.config
-        echo "CONFIG_MAC80211=m" >> out/.config
+        echo "CONFIG_CFG80211=y" >> out/.config
+        echo "CONFIG_MAC80211=y" >> out/.config
         echo "CONFIG_WLAN=y" >> out/.config
         echo "CONFIG_NET=y" >> out/.config
         
-        # --- DRIVER 3 ADAPTER WI-FI SEBAGAI MODUL (ANTI CRASH / FREEZE) ---
+        # --- DRIVER UTAMA ADAPTER TETAP SEBAGAI MODUL DINAMIS (=m) UNTUK MENCEGAH REBOOT/CRASH ---
         echo "CONFIG_ATH_COMMON=m" >> out/.config
         echo "CONFIG_ATH_CARDS=m" >> out/.config
         echo "CONFIG_ATH9K_HW=m" >> out/.config

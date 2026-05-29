@@ -1,4 +1,4 @@
-name: Build Kernel NetHunter Realme C11 & C15 (Nethengker Monolithic Realtek)
+name: Build Kernel NetHunter Realme C11 & C15 (Main Repo Monolithic Realtek)
 
 on:
   workflow_dispatch:
@@ -11,12 +11,10 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    # --- STEP 1: DOWNLOAD & EKSTRAK SOURCE CODE NETHENGKER PILIHAN ANDA ---
-    - name: Download & Extract Nethengker Kernel Source
+    # --- STEP 1: KLONING LANGSUNG REPOSITORI UTAMA YANG BARU ---
+    - name: Clone Main Branch Kernel Source
       run: |
-        wget https://github.com/Frostleaft07/android_kernel_realme_mt6765/archive/refs/tags/Nethengker.tar.gz
-        tar -f Nethengker.tar.gz -x --strip-components=1
-        rm -f Nethengker.tar.gz
+        git clone https://github.com/Frostleaft07/android_kernel_realme_mt6765.git --depth=1 .
 
     - name: Set Up Python 2.7 & Build Dependencies
       run: |
@@ -42,14 +40,14 @@ jobs:
       run: |
         sed -i '/obj-y += trng\//d' drivers/misc/mediatek/Makefile
 
-    # --- STEP 3: KONFIGURASI MONOLITIK (TINGGAL COLOK LANGSUNG JALAN) ---
+    # --- STEP 3: KONFIGURASI MONOLITIK JAHIT DALAM KERNEL (TINGGAL COLOK LANGSUNG JALAN) ---
     - name: Configure Kernel Defconfig & Inject Monolithic Realtek Wi-Fi
       run: |
         export ARCH=arm64
         export SUBARCH=arm64
         make O=out oppo6765_defconfig
         
-        # JAHIT INTI WIRELESS MONOLITIK (WAJIB AKTIF UNTUK KERNEL STABIL)
+        # JAHIT INTI WIRELESS MONOLITIK (WAJIB UNTUK KERNEL STABIL 4.9)
         echo "CONFIG_WIRELESS=y" >> out/.config
         echo "CONFIG_CFG80211=y" >> out/.config
         echo "CONFIG_MAC80211=y" >> out/.config
@@ -102,7 +100,7 @@ jobs:
         export CFLAGS_MODULE="-w"
         make O=out -j$(nproc --all) Image.gz-dtb
 
-    # --- STEP 4: KEMAS PACKAGING ZIP DENGAN SUNTIKAN FIRMWARE OTOMATIS ---
+    # --- STEP 4: KEMAS PACKAGING ZIP ANYKERNEL3 + SUNTIKAN FIRMWARE OTOMATIS ---
     - name: Package Kernel with Git-Cloned Verified AnyKernel Framework
       run: |
         git clone https://github.com/osm0sis/AnyKernel3.git --depth=1 AnyKernel
@@ -115,7 +113,7 @@ jobs:
 
         ## AnyKernel setup
         properties() { '
-        kernel.string=NetHunter Nethengker Realtek (C11/C15)
+        kernel.string=NetHunter MainRepo Realtek (C11/C15)
         do.devicecheck=1
         do.modules=0
         do.systemless=1
@@ -167,7 +165,7 @@ jobs:
           cd $home;
           if [ -f boot-new.img ]; then
             dd if=boot-new.img of=$block bs=1048576 2>/dev/null;
-            ui_print "-> Penyuntikan Kernel Nethengker Sukses!";
+            ui_print "-> Penyuntikan Kernel MainRepo Sukses!";
           else
             dd if=$home/Image.gz-dtb of=$block bs=1048576 2>/dev/null;
             ui_print "-> Fallback Direct Flashing Berhasil!";
@@ -179,17 +177,17 @@ jobs:
         chmod -R 755 AnyKernel/tools/
 
         cp out/arch/arm64/boot/Image.gz-dtb AnyKernel/
-        echo "NetHunter Nethengker Monolithic" > AnyKernel/banner
+        echo "NetHunter MainRepo Monolithic" > AnyKernel/banner
         
-        # SUNTIK OTOMATIS FIRMWARE AGAR TINGGAL COLOK LANGSUNG JALAN
+        # SUNTIK OTOMATIS BERKAS FIRMWARE FISIK KE UTAMA VENDOR ANDROID
         mkdir -p AnyKernel/modules/vendor/firmware
         cp firmware_pack/rtl8188eufw.bin AnyKernel/modules/vendor/firmware/
         
         cd AnyKernel
-        zip -r9 ../NetHunter-Nethengker-RTL8188EUS.zip *
+        zip -r9 ../NetHunter-MainRepo-RTL8188EUS.zip *
 
     - name: Upload Flashable AnyKernel3 ZIP to GitHub
       uses: actions/upload-artifact@v4
       with:
-        name: NetHunter-Nethengker-ZIP
-        path: NetHunter-Nethengker-RTL8188EUS.zip
+        name: NetHunter-MainRepo-ZIP
+        path: NetHunter-MainRepo-RTL8188EUS.zip

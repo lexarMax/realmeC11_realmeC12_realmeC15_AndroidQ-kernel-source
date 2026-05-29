@@ -8,25 +8,36 @@ env:
 
 jobs:
   build-kernel:
-    # Menggunakan server terbaru agar masuk antrean instan (langsung jalan)
+    # Menggunakan server terbaru agar bebas antrean (langsung jalan)
     runs-on: ubuntu-latest
 
-    # MENGGUNAKAN DOCKER ALTERNATIF YANG PUBLIC & AKTIF
+    # MENGGUNAKAN IMAGE RESMI UBUNTU 20.04 (DIJAMIN SELALU BISA DI-PULL)
     container:
-      image: gengkapak/android-build-env:ubuntu20.04
+      image: ubuntu:20.04
 
     steps:
-    # --- STEP 1: KLONING REPOSITORI UTAMA ---
+    # --- STEP 1: INSTALL DEPENDENCIES DI DALAM DOCKER RESMI ---
+    - name: Install Build Dependencies & Toolchain
+      run: |
+        # Mengatur agar apt-get tidak memunculkan prompt interaktif saat install zona waktu
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update
+        apt-get install -y tzdata
+        
+        # Install semua tools esensial untuk kompilasi kernel Android lama
+        apt-get install -y bc build-essential libncurses5-dev libssl-dev bison flex libelf-dev \
+                           glibc-source libcap-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+                           zip git wget python2 curl rsync lzip liblz4-tool libio-compress-perl
+
+        # Daftarkan Python 2 sebagai default perintah 'python'
+        ln -sf /usr/bin/python2 /usr/bin/python
+
+    # --- STEP 2: KLONING REPOSITORI UTAMA ---
     - name: Clone Main Branch Kernel Source
       run: |
         git clone https://github.com/Frostleaft07/android_kernel_realme_mt6765.git --depth=1 .
 
-    # Membuat symlink agar perintah 'python' otomatis merujuk ke Python 2 bawaan Docker
-    - name: Set Up Python Link
-      run: |
-        ln -sf /usr/bin/python2 /usr/bin/python
-
-    # --- STEP 2: SUNTIK DRIVER UTAMA TL-WN725N v3 (RTL8188EUS) ---
+    # --- STEP 3: SUNTIK DRIVER UTAMA TL-WN725N v3 (RTL8188EUS) ---
     - name: Inject Driver Utama TL-WN725N v3 (RTL8188EUS)
       run: |
         cd drivers/net/wireless/
@@ -44,7 +55,7 @@ jobs:
       run: |
         sed -i '/obj-y += trng\//d' drivers/misc/mediatek/Makefile
 
-    # --- STEP 3: KONFIGURASI MONOLITIK JAHIT DALAM KERNEL ---
+    # --- STEP 4: KONFIGURASI MONOLITIK JAHIT DALAM KERNEL ---
     - name: Configure Kernel Defconfig & Inject Monolithic Realtek Wi-Fi
       run: |
         export ARCH=arm64
@@ -99,13 +110,13 @@ jobs:
       run: |
         export ARCH=arm64
         export SUBARCH=arm64
-        # Menggunakan cross-compiler bawaan Docker image yang stabil untuk kernel 4.9 lama
+        # Menggunakan cross-compiler GCC-9 bawaan Ubuntu 20.04 resmi (sangat aman untuk kernel 4.9 lama)
         export CROSS_COMPILE=aarch64-linux-gnu-
         export KCFLAGS="-w -fno-pic -fno-strict-aliasing"
         export CFLAGS_MODULE="-w"
         make O=out -j$(nproc --all) Image.gz-dtb
 
-    # --- STEP 4: KEMAS PACKAGING ZIP ANYKERNEL3 ---
+    # --- STEP 5: KEMAS PACKAGING ZIP ANYKERNEL3 ---
     - name: Package Kernel with Git-Cloned Verified AnyKernel Framework
       run: |
         git clone https://github.com/osm0sis/AnyKernel3.git --depth=1 AnyKernel

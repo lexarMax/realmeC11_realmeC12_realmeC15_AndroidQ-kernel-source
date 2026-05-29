@@ -8,10 +8,8 @@ env:
 
 jobs:
   build-kernel:
-    # Menggunakan server terbaru agar bebas antrean (langsung jalan)
     runs-on: ubuntu-latest
 
-    # MENGGUNAKAN IMAGE RESMI UBUNTU 20.04 (DIJAMIN SELALU BISA DI-PULL)
     container:
       image: ubuntu:20.04
 
@@ -19,17 +17,15 @@ jobs:
     # --- STEP 1: INSTALL DEPENDENCIES DI DALAM DOCKER RESMI ---
     - name: Install Build Dependencies & Toolchain
       run: |
-        # Mengatur agar apt-get tidak memunculkan prompt interaktif saat install zona waktu
         export DEBIAN_FRONTEND=noninteractive
         apt-get update
         apt-get install -y tzdata
-        
-        # Install semua tools esensial untuk kompilasi kernel Android lama
         apt-get install -y bc build-essential libncurses5-dev libssl-dev bison flex libelf-dev \
                            glibc-source libcap-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-                           zip git wget python2 curl rsync lzip liblz4-tool libio-compress-perl
+                           zip git wget python2 curl rsync lzip liblz4-tool libio-compress-perl python-is-python2
 
-        # Daftarkan Python 2 sebagai default perintah 'python'
+        # SUNTIKKAN SYMLINK YANG LEBIH KUAT KE SISTEM UTAMA
+        ln -sf /usr/bin/python2 /usr/bin/python2.7
         ln -sf /usr/bin/python2 /usr/bin/python
 
     # --- STEP 2: KLONING REPOSITORI UTAMA ---
@@ -104,13 +100,13 @@ jobs:
         
         echo 'CONFIG_FIRMWARE_IN_KERNEL=n' >> out/.config
         
-        make O=out oldconfig
+        # PERBAIKAN DISINI: Menggunakan 'olddefconfig' agar otomatis bypass pertanyaan looping terminal
+        make O=out olddefconfig
 
     - name: Compile Kernel Image.gz-dtb
       run: |
         export ARCH=arm64
         export SUBARCH=arm64
-        # Menggunakan cross-compiler GCC-9 bawaan Ubuntu 20.04 resmi (sangat aman untuk kernel 4.9 lama)
         export CROSS_COMPILE=aarch64-linux-gnu-
         export KCFLAGS="-w -fno-pic -fno-strict-aliasing"
         export CFLAGS_MODULE="-w"
@@ -195,7 +191,6 @@ jobs:
         cp out/arch/arm64/boot/Image.gz-dtb AnyKernel/
         echo "NetHunter MainRepo Monolithic" > AnyKernel/banner
         
-        # SUNTIK OTOMATIS BERKAS FIRMWARE FISIK KE DIRECTORY VENDOR
         mkdir -p AnyKernel/modules/vendor/firmware
         cp firmware_pack/rtl8188eufw.bin AnyKernel/modules/vendor/firmware/
         

@@ -11,9 +11,9 @@ jobs:
     # Menggunakan server terbaru agar masuk antrean instan (langsung jalan)
     runs-on: ubuntu-latest
 
-    # Menggunakan Docker khusus Android agar lingkungan internalnya berbasis Ubuntu 20.04 + Toolchain siap pakai
+    # MENGGUNAKAN DOCKER ALTERNATIF YANG PUBLIC & AKTIF
     container:
-      image: kdrag0n/android-build-env:v2
+      image: gengkapak/android-build-env:ubuntu20.04
 
     steps:
     # --- STEP 1: KLONING REPOSITORI UTAMA ---
@@ -99,7 +99,7 @@ jobs:
       run: |
         export ARCH=arm64
         export SUBARCH=arm64
-        # Menggunakan cross-compiler bawaan Docker image kdrag0n yang sangat stabil untuk kernel 4.9 lama
+        # Menggunakan cross-compiler bawaan Docker image yang stabil untuk kernel 4.9 lama
         export CROSS_COMPILE=aarch64-linux-gnu-
         export KCFLAGS="-w -fno-pic -fno-strict-aliasing"
         export CFLAGS_MODULE="-w"

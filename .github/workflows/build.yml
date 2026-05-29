@@ -1,4 +1,4 @@
-name: Build Kernel NetHunter C11 & C15 (Kernel 4.9.337 Exclusive Realtek Pack)
+name: Build Kernel NetHunter Realme C11 & C15 (Nethengker Monolithic Realtek)
 
 on:
   workflow_dispatch:
@@ -11,8 +11,12 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: Checkout Kernel Source
-      uses: actions/checkout@v4
+    # --- STEP 1: DOWNLOAD & EKSTRAK SOURCE CODE NETHENGKER PILIHAN ANDA ---
+    - name: Download & Extract Nethengker Kernel Source
+      run: |
+        wget https://github.com/Frostleaft07/android_kernel_realme_mt6765/archive/refs/tags/Nethengker.tar.gz
+        tar -f Nethengker.tar.gz -x --strip-components=1
+        rm -f Nethengker.tar.gz
 
     - name: Set Up Python 2.7 & Build Dependencies
       run: |
@@ -20,6 +24,7 @@ jobs:
         sudo apt-get install -y bc build-essential libncurses5-dev libssl-dev bison flex libelf-dev glibc-source libcap-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu zip git wget python2
         sudo ln -sf /usr/bin/python2 /usr/bin/python
 
+    # --- STEP 2: SUNTIK DRIVER UTAMA TL-WN725N v3 (RTL8188EUS) ---
     - name: Inject Driver Utama TL-WN725N v3 (RTL8188EUS)
       run: |
         cd drivers/net/wireless/
@@ -37,36 +42,31 @@ jobs:
       run: |
         sed -i '/obj-y += trng\//d' drivers/misc/mediatek/Makefile
 
-    - name: Configure Kernel Defconfig & Inject NetHunter Multi-Driver Features
+    # --- STEP 3: KONFIGURASI MONOLITIK (TINGGAL COLOK LANGSUNG JALAN) ---
+    - name: Configure Kernel Defconfig & Inject Monolithic Realtek Wi-Fi
       run: |
         export ARCH=arm64
         export SUBARCH=arm64
         make O=out oppo6765_defconfig
         
-        # =========================================================
-        # --- 1. SETTING WAJIB KERNEL 4.9: WIRELESS CORE SEBAGAI MODUL ---
-        # =========================================================
+        # JAHIT INTI WIRELESS MONOLITIK (WAJIB AKTIF UNTUK KERNEL STABIL)
         echo "CONFIG_WIRELESS=y" >> out/.config
-        echo "CONFIG_CFG80211=m" >> out/.config
-        echo "CONFIG_MAC80211=m" >> out/.config
+        echo "CONFIG_CFG80211=y" >> out/.config
+        echo "CONFIG_MAC80211=y" >> out/.config
         echo "CONFIG_WLAN=y" >> out/.config
         echo "CONFIG_NET=y" >> out/.config
         
-        # =========================================================
-        # --- 2. DRIVER UTAMA REALTEK RTL8188EUS (=m) -------------
-        # =========================================================
-        echo "CONFIG_RTL8188EUS=m" >> out/.config
+        # JAHIT DRIVER UTAMA REALTEK SECARA MONOLITIK (=y)
+        echo "CONFIG_RTL8188EUS=y" >> out/.config
         echo "CONFIG_88EU_AP_MODE=y" >> out/.config
         echo "CONFIG_88EU_MONITOR_MODE=y" >> out/.config
         echo "CONFIG_CONCURRENT_MODE=y" >> out/.config
         
-        # BERSIHKAN DRIVER LAIN AGAR TIDAK BENTROK
+        # MATIKAN DRIVER LAIN AGAR COMPILER BERSIH
         echo "CONFIG_ATH_CARDS=n" >> out/.config
         echo "CONFIG_MT7601U=n" >> out/.config
         
-        # =========================================================
-        # --- 3. SUBSISTEM ADVANCED ROUTING (ANTI NETLINK ERROR) ---
-        # =========================================================
+        # SUBSISTEM NETWORK TINGKAT LANJUT (UNTUK CAPTIVE PORTAL ANTI NETLINK ERROR)
         echo "CONFIG_CFG80211_WEXT=y" >> out/.config
         echo "CONFIG_CFG80211_REQUIRE_SIGNED_REGDB=n" >> out/.config
         echo "CONFIG_CFG80211_CRDA_SUPPORT=y" >> out/.config
@@ -93,30 +93,31 @@ jobs:
         
         make O=out oldconfig
 
-    - name: Compile Kernel Image.gz-dtb & Modules
+    - name: Compile Kernel Image.gz-dtb
       run: |
         export ARCH=arm64
         export SUBARCH=arm64
         export CROSS_COMPILE=aarch64-linux-gnu-
         export KCFLAGS="-w -fno-pic -fno-strict-aliasing"
         export CFLAGS_MODULE="-w"
-        make O=out -j$(nproc --all) Image.gz-dtb modules
+        make O=out -j$(nproc --all) Image.gz-dtb
 
+    # --- STEP 4: KEMAS PACKAGING ZIP DENGAN SUNTIKAN FIRMWARE OTOMATIS ---
     - name: Package Kernel with Git-Cloned Verified AnyKernel Framework
       run: |
         git clone https://github.com/osm0sis/AnyKernel3.git --depth=1 AnyKernel
         rm -f AnyKernel/README.md AnyKernel/anykernel.sh AnyKernel/tools/ak3-core.sh
         
-        # 1. Tulis ulang anykernel.sh dengan mengaktifkan do.modules=1
+        # 1. Tulis ulang anykernel.sh (Mendukung penuh lini Realme MT6765)
         cat << 'EOF' > AnyKernel/anykernel.sh
         # AnyKernel3 Ramdisk Mod Script
         # osm0sis @ xda-developers
 
         ## AnyKernel setup
         properties() { '
-        kernel.string=NetHunter Late-Load Realtek (C11/C15)
+        kernel.string=NetHunter Nethengker Realtek (C11/C15)
         do.devicecheck=1
-        do.modules=1
+        do.modules=0
         do.systemless=1
         do.cleanup=1
         do.cleanuponabort=0
@@ -132,19 +133,7 @@ jobs:
 
         . tools/ak3-core.sh;
 
-        # Ekstraksi boot bawaan
         split_boot;
-
-        # --- TRICK AUTOMATION UTAMA: Suntik Script Pemuatan Terlambat di Ramdisk init.rc ---
-        # Ini bertugas memaksa kernel memuat driver secara otomatis HANYA setelah Android berhasil booting normal
-        if [ -f ramdisk/init.rc ]; then
-          echo "" >> ramdisk/init.rc
-          echo "on property:sys.boot_completed=1" >> ramdisk/init.rc
-          echo "    exec u:r:su:s0 root root -- /system/bin/insmod /vendor/lib/modules/cfg80211.ko" >> ramdisk/init.rc
-          echo "    exec u:r:su:s0 root root -- /system/bin/insmod /vendor/lib/modules/mac80211.ko" >> ramdisk/init.rc
-          echo "    exec u:r:su:s0 root root -- /system/bin/insmod /vendor/lib/modules/rtl8188eus.ko" >> ramdisk/init.rc
-        fi;
-
         flash_boot;
         EOF
 
@@ -155,7 +144,6 @@ jobs:
         bootimg=$home/boot.img;
         bin=$home/tools;
         split_img=$home/split_img;
-        ramdisk=$home/ramdisk;
 
         ui_print() { until [ ! "$1" ]; do echo -e "ui_print $1\nui_print" > /proc/self/fd/$OUTFD; shift; done; }
         abort() { ui_print " " "$@"; exit 1; }
@@ -167,23 +155,9 @@ jobs:
           cd $split_img;
           $bin/magiskboot unpack -h $bootimg 2>/dev/null || true;
           cd $home;
-          
-          # Bongkar ramdisk bawaan agar file init.rc bisa dimodifikasi oleh anykernel.sh
-          mkdir -p $ramdisk;
-          cd $ramdisk;
-          if [ -f $split_img/ramdisk.cpio ]; then
-            $bin/magiskboot cpio $split_img/ramdisk.cpio extract 2>/dev/null || true;
-          fi;
-          cd $home;
         }
 
         flash_boot() {
-          # Kemas ulang ramdisk yang sudah dimodifikasi skrip init.rc nya
-          cd $ramdisk;
-          if [ -f $split_img/ramdisk.cpio ]; then
-            $bin/magiskboot cpio $split_img/ramdisk.cpio test 2>/dev/null || true;
-          fi;
-          
           cd $split_img;
           if [ -f $home/Image.gz-dtb ]; then
             cp -f $home/Image.gz-dtb kernel;
@@ -193,7 +167,7 @@ jobs:
           cd $home;
           if [ -f boot-new.img ]; then
             dd if=boot-new.img of=$block bs=1048576 2>/dev/null;
-            ui_print "-> Pemasangan Late-Load Realtek Sukses!";
+            ui_print "-> Penyuntikan Kernel Nethengker Sukses!";
           else
             dd if=$home/Image.gz-dtb of=$block bs=1048576 2>/dev/null;
             ui_print "-> Fallback Direct Flashing Berhasil!";
@@ -205,20 +179,17 @@ jobs:
         chmod -R 755 AnyKernel/tools/
 
         cp out/arch/arm64/boot/Image.gz-dtb AnyKernel/
-        echo "NetHunter Late-Load Realtek" > AnyKernel/banner
+        echo "NetHunter Nethengker Monolithic" > AnyKernel/banner
         
-        # --- PROSES AUTO-INJECT DRIVER & FIRMWARE ---
-        mkdir -p AnyKernel/modules/vendor/lib/modules
+        # SUNTIK OTOMATIS FIRMWARE AGAR TINGGAL COLOK LANGSUNG JALAN
         mkdir -p AnyKernel/modules/vendor/firmware
-        
-        find out/ -name "*.ko" -exec cp {} AnyKernel/modules/vendor/lib/modules/ \;
         cp firmware_pack/rtl8188eufw.bin AnyKernel/modules/vendor/firmware/
         
         cd AnyKernel
-        zip -r9 ../NetHunter-LateLoad-RTL8188EUS.zip *
+        zip -r9 ../NetHunter-Nethengker-RTL8188EUS.zip *
 
     - name: Upload Flashable AnyKernel3 ZIP to GitHub
       uses: actions/upload-artifact@v4
       with:
-        name: NetHunter-LateLoad-ZIP
-        path: NetHunter-LateLoad-RTL8188EUS.zip
+        name: NetHunter-Nethengker-ZIP
+        path: NetHunter-Nethengker-RTL8188EUS.zip

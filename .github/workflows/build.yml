@@ -58,6 +58,12 @@ jobs:
         export SUBARCH=arm64
         make O=out oppo6765_defconfig
         
+        # PERBAIKAN UTAMA: MATIKAN MEDIA TEK AEE DEBUG AGAR TIDAK ERROR "aee.h"
+        sed -i 's/CONFIG_MTK_AEE=y/CONFIG_MTK_AEE=n/g' out/.config
+        sed -i 's/CONFIG_MTK_AEE_FEATURE=y/CONFIG_MTK_AEE_FEATURE=n/g' out/.config
+        echo "CONFIG_MTK_AEE=n" >> out/.config
+        echo "CONFIG_MTK_AEE_FEATURE=n" >> out/.config
+        
         # JAHIT INTI WIRELESS MONOLITIK
         echo "CONFIG_WIRELESS=y" >> out/.config
         echo "CONFIG_CFG80211=y" >> out/.config
@@ -100,7 +106,6 @@ jobs:
         
         echo 'CONFIG_FIRMWARE_IN_KERNEL=n' >> out/.config
         
-        # PERBAIKAN DISINI: Menggunakan 'olddefconfig' agar otomatis bypass pertanyaan looping terminal
         make O=out olddefconfig
 
     - name: Compile Kernel Image.gz-dtb

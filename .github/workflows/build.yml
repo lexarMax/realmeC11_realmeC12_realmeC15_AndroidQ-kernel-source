@@ -24,8 +24,7 @@ jobs:
                            glibc-source libcap-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
                            zip git wget python2 curl rsync lzip liblz4-tool libio-compress-perl python-is-python2
 
-        # SUNTIKKAN SYMLINK YANG LEBIH KUAT KE SISTEM UTAMA
-        ln -sf /usr/bin/python2 /usr/bin/python2.7
+        # Symlink aman untuk Python
         ln -sf /usr/bin/python2 /usr/bin/python
 
     # --- STEP 2: KLONING REPOSITORI UTAMA ---
@@ -57,7 +56,7 @@ jobs:
         export ARCH=arm64
         export SUBARCH=arm64
         
-        # Paksa hapus bendera -Werror dari Makefile utama dan MediaTek
+        # Paksa hapus bendera -Werror agar Warning tidak menjadi Error
         sed -i 's/-Werror//g' Makefile
         find drivers/misc/mediatek/ -name "Makefile" -exec sed -i 's/-Werror//g' {} +
         find drivers/misc/mediatek/ -name "Makefile" -exec sed -i 's/CFLAGS_REMOVE_.*=-Werror//g' {} +
@@ -122,7 +121,7 @@ jobs:
         export KCFLAGS="-w -fno-pic -fno-strict-aliasing"
         export CFLAGS_MODULE="-w"
         
-        # PERBAIKAN DI SINI: Buat file cust.dtsi kosong secara paksa agar DTS tidak error
+        # Buat file cust.dtsi kosong secara paksa agar DTS tidak error
         mkdir -p arch/arm64/boot/dts/mediatek/
         touch arch/arm64/boot/dts/mediatek/cust.dtsi
         
@@ -213,8 +212,9 @@ jobs:
         cd AnyKernel
         zip -r9 ../NetHunter-MainRepo-RTL8188EUS.zip *
 
+    # PERBAIKAN: Mengunggah langsung file ZIP murni hasil zip-compress tanpa bungkus tambahan
     - name: Upload Flashable AnyKernel3 ZIP to GitHub
       uses: actions/upload-artifact@v4
       with:
-        name: NetHunter-MainRepo-ZIP
-        path: NetHunter-MainRepo-RTL8188EUS.zip
+        name: NetHunter-Realme-C11-C15-Flashable
+        path: ./NetHunter-MainRepo-RTL8188EUS.zip

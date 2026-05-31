@@ -63,6 +63,11 @@ jobs:
         
         make O=out oppo6765_defconfig
         
+        # PERBAIKAN: Bypass Error CC_STACKPROTECTOR_STRONG akibat ketidakcocokan GCC standar
+        sed -i 's/CONFIG_CC_STACKPROTECTOR_STRONG=y/# CONFIG_CC_STACKPROTECTOR_STRONG is not set/g' out/.config
+        sed -i 's/CONFIG_CC_STACKPROTECTOR_REGULAR=y/# CONFIG_CC_STACKPROTECTOR_REGULAR is not set/g' out/.config
+        echo "CONFIG_CC_STACKPROTECTOR_NONE=y" >> out/.config
+        
         # MATIKAN MEDIA TEK AEE DEBUG AGAR TIDAK ERROR
         sed -i 's/CONFIG_MTK_AEE=y/CONFIG_MTK_AEE=n/g' out/.config
         sed -i 's/CONFIG_MTK_AEE_FEATURE=y/CONFIG_MTK_AEE_FEATURE=n/g' out/.config
@@ -212,7 +217,7 @@ jobs:
         cd AnyKernel
         zip -r9 ../NetHunter-MainRepo-RTL8188EUS.zip *
 
-    # PERBAIKAN: Mengunggah langsung file ZIP murni hasil zip-compress tanpa bungkus tambahan
+    # Output tunggal 1 zip murni tanpa dobel kemasan
     - name: Upload Flashable AnyKernel3 ZIP to GitHub
       uses: actions/upload-artifact@v4
       with:
